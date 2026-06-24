@@ -1,26 +1,92 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* Enable class-based dark mode: the `.dark` class on <html> activates it
+   (rather than only following the OS setting). Lets us add a manual toggle. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* =========================================================================
+   DESIGN TOKENS  (Exercise 1 & 2 live here)
+   -------------------------------------------------------------------------
+   Everything visual in the app is driven by the tokens below. Change a value
+   here and the whole helpdesk re-themes. This is the single source of truth
+   for the "design system".
+
+   In Tailwind v4 a token named  --color-brand  automatically creates the
+   utilities  bg-brand  text-brand  border-brand  etc.  A token named
+   --radius-card  creates  rounded-card.  So edit a token -> new utilities
+   everywhere it is used.
+   ========================================================================= */
+@theme {
+  /* Brand / accent ------------------------------------------------------- */
+  --color-brand: #4f46e5;        /* primary buttons, links, active nav      */
+  --color-brand-dark: #4338ca;   /* hover state for brand                    */
+  --color-brand-soft: #eef2ff;   /* tinted brand background                  */
+
+  /* Neutral surfaces & text --------------------------------------------- */
+  --color-canvas: #f8fafc;       /* app background                          */
+  --color-surface: #ffffff;      /* cards, panels                           */
+  --color-border: #e2e8f0;       /* hairline borders                        */
+  --color-ink: #0f172a;          /* primary text                           */
+  --color-ink-soft: #64748b;     /* secondary / muted text                  */
+
+  /* Status colours (Exercise 3) ----------------------------------------- */
+  --color-open: #15803d;
+  --color-open-soft: #dcfce7;
+  --color-pending: #b45309;
+  --color-pending-soft: #fef3c7;
+  --color-closed: #475569;
+  --color-closed-soft: #f1f5f9;
+
+  /* Shape & type -------------------------------------------------------- */
+  --radius-card: 0.875rem;
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* =========================================================================
+   DARK MODE
+   -------------------------------------------------------------------------
+   The whole app is driven by the tokens above, and every component uses
+   token utilities (bg-surface, text-ink, border-border, …). So dark mode is
+   just: re-point those same tokens to dark values under `.dark`. Nothing in
+   the components needs to change — that's the payoff of a token system.
+   ========================================================================= */
+.dark {
+  --color-canvas: #0b1120;       /* app background                          */
+  --color-surface: #111a2e;      /* cards, panels                           */
+  --color-border: #1e293b;       /* hairline borders                        */
+  --color-ink: #e2e8f0;          /* primary text                           */
+  --color-ink-soft: #94a3b8;     /* secondary / muted text                  */
+
+  /* Brand reads better a touch lighter on dark surfaces. */
+  --color-brand: #818cf8;
+  --color-brand-dark: #6366f1;
+  --color-brand-soft: #1e1b4b;
+
+  /* Status pills: dark soft backgrounds with lighter text. */
+  --color-open: #4ade80;
+  --color-open-soft: #14532d;
+  --color-pending: #fbbf24;
+  --color-pending-soft: #422006;
+  --color-closed: #cbd5e1;
+  --color-closed-soft: #1e293b;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/* Base page styling. Students mostly work in components, not here. */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  /* Smooth the light/dark swap. */
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* A shared form control style, used by the New ticket form. Built from
+   Tailwind utilities via @apply so it stays consistent with the tokens. */
+@layer components {
+  .form-input {
+    @apply w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm outline-none transition-colors;
+  }
+  .form-input:focus-visible {
+    @apply border-brand;
+  }
 }
