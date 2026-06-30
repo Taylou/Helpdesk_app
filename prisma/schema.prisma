@@ -1,0 +1,46 @@
+// Prisma schema for the helpdesk lab.
+// Data model mirrors the old sample data: customers → tickets → messages.
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Customer {
+  id      Int      @id @default(autoincrement())
+  name    String
+  email   String   @unique
+  tickets Ticket[]
+}
+
+model Ticket {
+  id         Int       @id @default(autoincrement())
+  subject    String
+  status     String    @default("open") // open | pending | closed
+  priority   String    @default("medium") // low | medium | high | urgent
+  channel    String    @default("Email") // Email | Chat | Phone | Web form
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  customer   Customer  @relation(fields: [customerId], references: [id])
+  customerId Int
+  messages   Message[]
+
+  @@index([status])
+}
+
+model Message {
+  id        Int      @id @default(autoincrement())
+  from      String // customer | agent
+  author    String
+  body      String
+  createdAt DateTime @default(now())
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  ticketId  Int
+
+  @@index([ticketId])
+}

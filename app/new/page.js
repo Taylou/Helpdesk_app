@@ -1,7 +1,9 @@
+import Link from "next/link";
 import Button from "@/components/Button";
+import { createTicketAction } from "@/app/actions/tickets";
 
-// New-ticket form. The fields are styled but the form does not submit anywhere
-// this week (no backend yet). Wiring it up comes in a later lab.
+// New-ticket form. Submitting runs the createTicketAction server action, which
+// inserts the customer + ticket into the database and redirects to the ticket.
 export default function NewTicketPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -12,11 +14,13 @@ export default function NewTicketPage() {
         </p>
       </div>
 
-      <form className="space-y-5 rounded-card border border-border bg-surface p-6">
+      <form action={createTicketAction} className="space-y-5 rounded-card border border-border bg-surface p-6">
         <Field label="Customer name" htmlFor="name">
           <input
             id="name"
+            name="name"
             type="text"
+            required
             placeholder="e.g. Aoife Byrne"
             className="form-input"
           />
@@ -25,7 +29,9 @@ export default function NewTicketPage() {
         <Field label="Email" htmlFor="email">
           <input
             id="email"
+            name="email"
             type="email"
+            required
             placeholder="customer@example.com"
             className="form-input"
           />
@@ -34,7 +40,9 @@ export default function NewTicketPage() {
         <Field label="Subject" htmlFor="subject">
           <input
             id="subject"
+            name="subject"
             type="text"
+            required
             placeholder="Short summary of the issue"
             className="form-input"
           />
@@ -42,7 +50,7 @@ export default function NewTicketPage() {
 
         <div className="grid grid-cols-2 gap-4">
           <Field label="Priority" htmlFor="priority">
-            <select id="priority" className="form-input">
+            <select id="priority" name="priority" defaultValue="Medium" className="form-input">
               <option>Low</option>
               <option>Medium</option>
               <option>High</option>
@@ -50,7 +58,7 @@ export default function NewTicketPage() {
             </select>
           </Field>
           <Field label="Channel" htmlFor="channel">
-            <select id="channel" className="form-input">
+            <select id="channel" name="channel" defaultValue="Email" className="form-input">
               <option>Email</option>
               <option>Chat</option>
               <option>Phone</option>
@@ -62,6 +70,7 @@ export default function NewTicketPage() {
         <Field label="Description" htmlFor="description">
           <textarea
             id="description"
+            name="description"
             rows={4}
             placeholder="Describe the problem…"
             className="form-input resize-none"
@@ -69,7 +78,9 @@ export default function NewTicketPage() {
         </Field>
 
         <div className="flex justify-end gap-2">
-          <Button variant="ghost">Cancel</Button>
+          <Link href="/tickets">
+            <Button variant="ghost">Cancel</Button>
+          </Link>
           <Button variant="primary" type="submit">
             Create ticket
           </Button>
