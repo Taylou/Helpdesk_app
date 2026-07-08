@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getTicket } from "@/data/tickets";
+import { getTicket } from "@/lib/tickets";
+import { addReplyAction } from "@/app/actions/tickets";
 import Avatar from "@/components/Avatar";
 import Button from "@/components/Button";
 import StatusBadge from "@/components/StatusBadge";
@@ -8,7 +9,7 @@ import StatusBadge from "@/components/StatusBadge";
 export default async function TicketDetailPage({ params }) {
   // In the App Router, `params` is awaited before use.
   const { id } = await params;
-  const ticket = getTicket(id);
+  const ticket = await getTicket(id);
 
   if (!ticket) notFound();
 
@@ -49,18 +50,22 @@ export default async function TicketDetailPage({ params }) {
             ))}
           </div>
 
-          {/* Reply composer — visual only this week. */}
-          <div className="rounded-card border border-border bg-surface p-4">
+          {/* Reply composer — submits to the addReplyAction server action,
+              which saves the message and refreshes this page. */}
+          <form action={addReplyAction} className="rounded-card border border-border bg-surface p-4">
+            <input type="hidden" name="ticketId" value={ticket.id} />
             <textarea
+              name="body"
               rows={3}
+              required
               placeholder="Write a reply…"
               className="w-full resize-none rounded-lg border border-border bg-canvas p-3 text-sm outline-none focus-visible:border-brand"
             />
             <div className="mt-3 flex justify-end gap-2">
-              <Button variant="ghost">Save draft</Button>
-              <Button variant="primary">Send reply</Button>
+              <Button variant="ghost" type="reset">Clear</Button>
+              <Button variant="primary" type="submit">Send reply</Button>
             </div>
-          </div>
+          </form>
 
           {/* =====================================================================
               RESERVED FOR THE AI AGENT (later in the semester)

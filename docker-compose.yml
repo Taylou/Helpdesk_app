@@ -1,0 +1,25 @@
+# Local PostgreSQL server for the helpdesk lab.
+#   Start:  docker compose up -d
+#   Stop:   docker compose down          (data is kept in the `pgdata` volume)
+#   Reset:  docker compose down -v        (deletes all data)
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: helpdesk-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: helpdesk
+      POSTGRES_PASSWORD: helpdesk
+      POSTGRES_DB: helpdesk
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U helpdesk -d helpdesk"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:

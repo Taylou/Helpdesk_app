@@ -1,11 +1,14 @@
 import Link from "next/link";
-import { tickets } from "@/data/tickets";
-import { stats } from "@/data/stats";
+import { getStats, getRecentTickets } from "@/lib/tickets";
 import StatCard from "@/components/StatCard";
 import TicketRow from "@/components/TicketRow";
 
-export default function DashboardPage() {
-  const recent = tickets.slice(0, 5);
+// Always read fresh from the database (don't statically cache at build time).
+export const dynamic = "force-dynamic";
+
+export default async function DashboardPage() {
+  // Read live data from the database (Postgres via Prisma).
+  const [stats, recent] = await Promise.all([getStats(), getRecentTickets(5)]);
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">

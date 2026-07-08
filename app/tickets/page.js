@@ -1,9 +1,14 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { tickets } from "@/data/tickets";
+import { getTickets } from "@/lib/tickets";
 import TicketsBrowser from "@/components/TicketsBrowser";
 
-export default function TicketsPage() {
+// Always read fresh from the database (don't statically cache at build time).
+export const dynamic = "force-dynamic";
+
+export default async function TicketsPage() {
+  const tickets = await getTickets();
+
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <div className="flex items-center justify-between">
