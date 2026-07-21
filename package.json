@@ -13,7 +13,15 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:report": "playwright show-report",
     "bench": "k6 run k6/tickets-load.js",
-    "bench:smoke": "k6 run -e VUS=1 -e DURATION=10s k6/tickets-load.js"
+    "bench:smoke": "k6 run k6/smoke.js",
+    "bench:crud": "k6 run k6/tickets-crud.js",
+    "bench:stress": "k6 run k6/stress.js",
+    "bench:spike": "k6 run k6/spike.js",
+    "bench:dash": "k6 run -o web-dashboard k6/tickets-load.js",
+    "bench:report": "k6 run -o \"web-dashboard=export=k6/report.html\" k6/tickets-load.js",
+    "bench:prom": "k6 run -o experimental-prometheus-rw k6/tickets-load.js",
+    "monitor:up": "docker compose -f docker-compose.monitoring.yml up -d",
+    "monitor:down": "docker compose -f docker-compose.monitoring.yml down"
   },
   "prisma": {
     "seed": "node prisma/seed.mjs"

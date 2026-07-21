@@ -1,0 +1,56 @@
+# Optional monitoring stack for the k6 benchmarks: Prometheus (stores the
+# metrics) + Grafana (charts them).
+#
+# This is a SEPARATE compose file from docker-compose.yml on purpose — the
+# database lab's `docker compose up -d` should stay small and fast. Start this
+# only when you want dashboards:
+#
+#   Start:  docker compose -f docker-compose.monitoring.yml up -d
+#   Stop:   docker compose -f docker-compose.monitoring.yml down
+#   Reset:  docker compose -f docker-compose.monitoring.yml down -v
+#
+# Then:  npm run bench:prom      (k6 pushes metrics to Prometheus)
+#        Grafana → http://localhost:3001
+services:
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: helpdesk-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      # k6 PUSHES metrics in ("remote write") rather than Prometheus scraping
+      # them — a load test is too short-lived to be scraped reliably. This flag
+      # turns on the receiving endpoint at /api/v1/write.
+      - --web.enable-remote-write-receiver
+      # Lets k6 send high-resolution trend data as native histograms.
+      - --enable-feature=native-histograms
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    container_name: helpdesk-grafana
+    restart: unless-stopped
+    ports:
+      # 3001, NOT 3000 — the Next.js dev server already owns 3000.
+      - "3001:3000"
+    environment:
+      # Lab convenience: no login prompt. Never do this outside a lab.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    volumes:
+      # Provisioning = config-as-files, so the datasource and dashboard already
+      # exist on first boot. No clicking through setup.
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+volumes:
+  promdata:
+  grafanadata:

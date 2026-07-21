@@ -21,6 +21,7 @@
 
 # k6 benchmark output
 /k6/summary.json
+/k6/report.html
 /k6/*-report.html
 
 # next.js

@@ -1,0 +1,194 @@
+{
+  "uid": "k6-helpdesk",
+  "title": "k6 — Helpdesk API",
+  "description": "Live k6 load-test metrics pushed to Prometheus via remote write. Run: npm run bench:prom",
+  "tags": ["k6", "helpdesk"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Requests (total)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "color": { "mode": "fixed", "fixedColor": "blue" } },
+        "overrides": []
+      },
+      "targets": [
+        { "refId": "A", "expr": "sum(k6_http_reqs_total)", "instant": true }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Peak VUs",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "color": { "mode": "fixed", "fixedColor": "purple" } },
+        "overrides": []
+      },
+      "targets": [
+        { "refId": "A", "expr": "max(max_over_time(k6_vus[$__range]))", "instant": true }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Failed requests",
+      "description": "Share of requests k6 considered failed. Deliberate 404/400 cases are excluded via expectedStatuses.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 0.01 },
+              { "color": "red", "value": 0.05 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "refId": "A", "expr": "max(max_over_time(k6_http_req_failed_rate[$__range]))", "instant": true }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Checks passing",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 0.95 },
+              { "color": "green", "value": 0.99 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "refId": "A", "expr": "min(min_over_time(k6_checks_rate[$__range]))", "instant": true }
+      ]
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Throughput — requests/sec by endpoint",
+      "description": "How much work the API handled. Endpoints come from the `endpoint` tag set in k6/lib/api.js.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { "fillOpacity": 12, "lineWidth": 2, "showPoints": "never" }
+        },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["max", "mean"] } },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (endpoint) (rate(k6_http_reqs_total[30s]))",
+          "legendFormat": "{{endpoint}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Latency — p99 by endpoint",
+      "description": "k6's default trend stat over remote write is p99. Note the remote-write output reports durations in SECONDS (Prometheus base-unit convention), even though k6's terminal summary prints ms. Set K6_PROMETHEUS_RW_TREND_STATS to also export p95/avg/max.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "fillOpacity": 8, "lineWidth": 2, "showPoints": "never" }
+        },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["max", "mean"] } },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg by (endpoint) (k6_http_req_duration_p99)",
+          "legendFormat": "{{endpoint}}"
+        }
+      ]
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Load — virtual users",
+      "description": "The load shape: the ramp defined by `stages` in the k6 script.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 13 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "fillOpacity": 25, "lineWidth": 2, "showPoints": "never" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "refId": "A", "expr": "k6_vus", "legendFormat": "active VUs" },
+        { "refId": "B", "expr": "k6_vus_max", "legendFormat": "max VUs" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Errors — failed request rate",
+      "description": "Watch this against the VU ramp: errors appearing as load climbs is your ceiling.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 13 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "custom": { "fillOpacity": 20, "lineWidth": 2, "showPoints": "never" }
+        },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (endpoint) (k6_http_req_failed_rate)",
+          "legendFormat": "{{endpoint}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Iterations/sec",
+      "description": "One iteration = one full pass of the script's default function.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 13 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "fillOpacity": 12, "lineWidth": 2, "showPoints": "never" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(k6_iterations_total[30s]))", "legendFormat": "iterations/s" }
+      ]
+    }
+  ]
+}

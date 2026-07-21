@@ -1,36 +1,37 @@
 // =============================================================================
-// k6 load test for the helpdesk REST API (app/api/tickets/*).
+// LOAD test — "is it fast enough at the traffic we expect?"
 // -----------------------------------------------------------------------------
-// k6 spins up N "virtual users" (VUs) that each run the default function in a
-// loop. Here every iteration is read-heavy with a light write: ~80% of the time
-// we list + read a ticket, ~20% we create one. `checks` assert each response;
-// `thresholds` turn latency/error rates into a pass/fail exit code (great for
-// CI). Run it with `npm run bench` (see package.json) — the app must be running.
+// This is the baseline benchmark. It models realistic helpdesk traffic: mostly
+// people reading tickets, occasionally someone filing a new one (~80% reads /
+// ~20% writes). Thresholds turn the result into a pass/fail exit code, so CI
+// can gate on it.
+//
+// Request plumbing lives in ./lib/api.js — this file only describes the *load
+// shape*. See smoke.js (correctness), tickets-crud.js (all endpoints),
+// stress.js (find the ceiling) and spike.js (sudden surge).
 //
 // Tunables via env (-e KEY=value):
 //   BASE_URL   default http://localhost:3000
-//   VUS        peak virtual users (default 20)
+//   VUS        peak virtual users (default 10)
 //   DURATION   if set, run a flat VUS-for-DURATION test instead of the ramp
-//              (used by `npm run bench:smoke`)
 // =============================================================================
 
-import http from "k6/http";
-import { check, sleep } from "k6";
+import { sleep } from "k6";
 import { Rate } from "k6/metrics";
+import { apiListTickets, apiGetTicket, apiCreateTicket, pick, safeJson } from "./lib/api.js";
 
-const BASE_URL = __ENV.BASE_URL || "http://localhost:3000";
 const PEAK_VUS = Number(__ENV.VUS) || 10;
-const DURATION = __ENV.DURATION; // e.g. "10s" → flat smoke run
+const DURATION = __ENV.DURATION; // e.g. "10s" → flat run
 
 // Custom metric: share of iterations where every check passed.
 const iterationOk = new Rate("iteration_checks_passed");
 
-// A flat run (smoke) when DURATION is set, otherwise a ramp: warm up, hold at
-// peak, ramp down. Stages are [target VUs, over duration].
+// A flat run when DURATION is set, otherwise a ramp: warm up, hold at peak,
+// ramp down. Stages are [target VUs, over duration].
 const stages = DURATION
   ? [{ duration: DURATION, target: PEAK_VUS }]
   : [
-      { duration: "10s", target: 5 },          // smoke / warm-up
+      { duration: "10s", target: 5 },          // warm-up
       { duration: "30s", target: PEAK_VUS },   // ramp to peak
       { duration: "30s", target: PEAK_VUS },   // hold
       { duration: "10s", target: 0 },          // ramp down
@@ -51,64 +52,26 @@ export const options = {
   },
 };
 
-const JSON_HEADERS = { headers: { "Content-Type": "application/json" } };
-
-// Sample data for created tickets (writes).
-const NAMES = ["Ada Lovelace", "Alan Turing", "Grace Hopper", "Katherine Johnson"];
-function pick(arr) {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
 export default function ticketsScenario() {
   // 20% of iterations do a write; the rest are pure reads.
   const isWrite = Math.random() < 0.2;
   let allPassed = true;
-  const track = (ok) => {
-    if (!ok) allPassed = false;
+  const track = (result) => {
+    if (!result.ok) allPassed = false;
+    return result;
   };
 
   // --- Read: list tickets --------------------------------------------------
-  const listRes = http.get(`${BASE_URL}/api/tickets`);
-  track(
-    check(listRes, {
-      "list: status 200": (r) => r.status === 200,
-      "list: returns an array": (r) => Array.isArray(r.json()),
-    })
-  );
+  const { res: listRes } = track(apiListTickets());
 
   // --- Read: fetch one of the returned tickets -----------------------------
-  const tickets = listRes.status === 200 ? listRes.json() : [];
+  const tickets = listRes.status === 200 ? safeJson(listRes) : null;
   if (Array.isArray(tickets) && tickets.length > 0) {
-    const id = pick(tickets).id;
-    const oneRes = http.get(`${BASE_URL}/api/tickets/${id}`);
-    track(
-      check(oneRes, {
-        "detail: status 200": (r) => r.status === 200,
-        "detail: id matches": (r) => r.json("id") === id,
-      })
-    );
+    track(apiGetTicket(pick(tickets).id));
   }
 
   // --- Write: create a ticket (light share) --------------------------------
-  if (isWrite) {
-    const name = pick(NAMES);
-    const payload = JSON.stringify({
-      name,
-      // Unique-ish email keeps the customer set from exploding but still varied.
-      email: `${name.split(" ")[0].toLowerCase()}@example.com`,
-      subject: `Load test ticket ${Date.now()}-${__VU}-${__ITER}`,
-      priority: "low",
-      channel: "Web form",
-      description: "Created by k6 load test.",
-    });
-    const createRes = http.post(`${BASE_URL}/api/tickets`, payload, JSON_HEADERS);
-    track(
-      check(createRes, {
-        "create: status 201": (r) => r.status === 201,
-        "create: returns id": (r) => typeof r.json("id") === "number",
-      })
-    );
-  }
+  if (isWrite) track(apiCreateTicket("load"));
 
   iterationOk.add(allPassed);
   sleep(1); // brief think-time between iterations
