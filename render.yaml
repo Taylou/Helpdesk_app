@@ -1,0 +1,36 @@
+# Render Blueprint — provisions the whole stack straight from this repo.
+# In the Render dashboard: New ➜ Blueprint ➜ pick this repo. Render reads this
+# file and creates BOTH the Postgres database and the web service, wiring them
+# together. See readme6.md for the click-by-click walkthrough.
+#
+# Docs: https://render.com/docs/blueprint-spec
+
+databases:
+  - name: helpdesk-db
+    databaseName: helpdesk
+    user: helpdesk
+    plan: free          # Free Postgres expires ~30 days after creation (see readme6).
+    region: oregon      # DB and web service MUST share a region for the free internal URL.
+
+services:
+  - type: web
+    name: helpdesk-app
+    runtime: node
+    plan: free          # Free web services sleep after ~15 min idle; first hit cold-starts.
+    region: oregon
+    branch: main        # Deploys track this branch.
+    # Build on Render's servers: apply migrations, seed only if the DB is empty,
+    # then build Next.js. `npm ci` runs `postinstall` → `prisma generate`.
+    buildCommand: npm ci && npm run render-build
+    startCommand: npm run start   # `next start` binds to Render's $PORT automatically.
+    healthCheckPath: /api/health  # Render waits for a 200 here before routing traffic.
+    autoDeploy: true    # Push to `main` ➜ Render rebuilds & deploys. (readme6 shows the
+                        # CI-gated alternative: set this false and let CI trigger deploys.)
+    envVars:
+      # Pulled from the database above — Render injects the internal connection string.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: helpdesk-db
+          property: connectionString
+      - key: NODE_VERSION
+        value: "20.18.0"

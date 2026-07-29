@@ -1,0 +1,130 @@
+name: CI/CD
+
+# CI  = run the tests on every push / PR.
+# CD  = when tests pass on `main`, deploy to Render.
+on:
+  push:
+    branches: [main, Dev]
+  pull_request:
+    branches: [main]
+
+# If you push twice quickly, cancel the older run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Build the production bundle and smoke-test the REST API with k6, against a
+  # real `next start` server + Postgres — i.e. exactly what gets deployed.
+  # ---------------------------------------------------------------------------
+  build-and-smoke:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: helpdesk
+          POSTGRES_PASSWORD: helpdesk
+          POSTGRES_DB: helpdesk
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U helpdesk -d helpdesk"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://helpdesk:helpdesk@localhost:5432/helpdesk?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Apply migrations
+        run: npm run db:migrate:deploy
+      - run: npm run lint
+      - run: npm run build
+      - name: Seed sample data
+        run: npm run db:seed
+      - name: Install k6
+        run: |
+          K6VER=v0.55.0
+          curl -fsSL "https://github.com/grafana/k6/releases/download/${K6VER}/k6-${K6VER}-linux-amd64.tar.gz" -o k6.tgz
+          tar -xzf k6.tgz
+          sudo install "k6-${K6VER}-linux-amd64/k6" /usr/local/bin/k6
+          k6 version
+      - name: Start the production server
+        run: |
+          npm run start &
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3000/api/health >/dev/null; then echo "up"; break; fi
+            sleep 2
+          done
+      - name: k6 smoke test (REST API)
+        run: k6 run k6/smoke.js
+
+  # ---------------------------------------------------------------------------
+  # End-to-end tests: Playwright drives the real UI. Its config starts the app
+  # and reseeds the DB in global-setup.
+  # ---------------------------------------------------------------------------
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: helpdesk
+          POSTGRES_PASSWORD: helpdesk
+          POSTGRES_DB: helpdesk
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U helpdesk -d helpdesk"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://helpdesk:helpdesk@localhost:5432/helpdesk?schema=public
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Apply migrations
+        run: npm run db:migrate:deploy
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: Run E2E tests
+        run: npm run test:e2e
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # CD: deploy to Render, but only after both test jobs pass on `main`.
+  #
+  # Two ways to wire the deploy — pick one in readme6:
+  #   A) Render auto-deploy (render.yaml `autoDeploy: true`, the default). This
+  #      job then no-ops, because Render already redeploys on push.
+  #   B) CI-gated: set `autoDeploy: false`, add a RENDER_DEPLOY_HOOK_URL secret,
+  #      and this job triggers the deploy only when the tests above are green.
+  # ---------------------------------------------------------------------------
+  deploy:
+    needs: [build-and-smoke, e2e]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "No RENDER_DEPLOY_HOOK_URL secret set — relying on Render auto-deploy. Nothing to do."
+            exit 0
+          fi
+          echo "Tests passed — triggering Render deploy..."
+          curl -fsS -X POST "$HOOK"
