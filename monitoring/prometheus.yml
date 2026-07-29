@@ -1,0 +1,15 @@
+# Minimal Prometheus config for the k6 lab.
+#
+# Note there is no scrape job for k6. Prometheus normally *pulls* metrics from
+# targets on an interval, but a load test may only run for 80 seconds — too
+# short and too ephemeral to scrape. Instead k6 *pushes* to the remote-write
+# endpoint (enabled by --web.enable-remote-write-receiver in the compose file).
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Prometheus scraping itself — handy to confirm it's alive and healthy.
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

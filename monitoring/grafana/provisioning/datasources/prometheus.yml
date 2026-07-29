@@ -1,0 +1,14 @@
+# Auto-creates the Prometheus data source when Grafana starts, so you don't
+# have to add it by hand. `prometheus` is the service name from
+# docker-compose.monitoring.yml — containers reach each other by service name.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    # Fixed uid so the provisioned dashboard can reference this datasource.
+    uid: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
